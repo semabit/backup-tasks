@@ -51,8 +51,12 @@ namespace :backup do
 
   desc 'Restore backup of rails application data'
   task :restore do
-    tar_file = "#{BACKUP_DIR}.tar"
-    abort 'No backup file' unless File.exist?(tar_file)
+    if ENV.key?('backup_file')
+      tar_file = ENV['backup_file']
+    else
+      tar_file = "#{BACKUP_DIR}.tar"
+    end
+    abort "backup file '#{tar_file}' not found!" unless File.exist?(tar_file)
 
     print 'Confirm restoring from backup (Y/n): '
     confirmation = STDIN.gets.strip
