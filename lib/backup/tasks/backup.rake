@@ -7,37 +7,42 @@ namespace :backup do
     FileUtils.mkdir_p(BACKUP_DIR)
 
     # backup mysql database
-    puts 'Backup MySQL database...'
+    unless ENV["skip_database"].present? && ENV["skip_database"] == "true"
+      puts 'Backup MySQL database...'
 
-    db = Rails.configuration.database_configuration[Rails.env]
+      db = Rails.configuration.database_configuration[Rails.env]
 
-    dump_file = File.join(BACKUP_DIR, "#{db['database']}.dump")
-    sql_file = File.join(BACKUP_DIR, "#{db['database']}.sql")
-    system(
-      "mysqldump -u #{db['username']} #{"-p'#{db['password']}'" if db['password']} #{db['database']} > #{dump_file}"
-    )
-    File.open(sql_file, 'w') { |f| f.puts "use #{db['database']};\n" }
-    system("cat #{dump_file} >> #{sql_file}")
+      dump_file = File.join(BACKUP_DIR, "#{db['database']}.dump")
+      sql_file = File.join(BACKUP_DIR, "#{db['database']}.sql")
+      system(
+        "mysqldump -u #{db['username']} #{"-p'#{db['password']}'" if db['password']} #{db['database']} > #{dump_file}"
+      )
+      File.open(sql_file, 'w') { |f| f.puts "use #{db['database']};\n" }
+      system("cat #{dump_file} >> #{sql_file}")
+    end
 
     # backup uploads
-    src_dirs = [
-      File.join(Rails.root, 'public', 'uploads'),
-      File.join(Rails.root, 'private', 'uploads')
-    ]
+    unless ENV["skip_uploads"].present? && ENV["skip_uploads"] == "true"
+      src_dirs = [
+        File.join(Rails.root, 'public', 'uploads'),
+        File.join(Rails.root, 'private', 'uploads')
+      ]
 
-    src_dirs.each do |src_dir|
-      dst_dir = File.join(BACKUP_DIR, src_dir[(Rails.root.to_s.length + 1)..-1])
+      src_dirs.each do |src_dir|
+        dst_dir = File.join(BACKUP_DIR, src_dir[(Rails.root.to_s.length + 1)..-1])
 
-      unless File.exist?(src_dir)
-        puts "No backups found for #{src_dir}. Skipped."
-      else
-        puts "Backup uploads for #{src_dir}..."
+        unless File.exist?(src_dir)
+          puts "No backups found for #{src_dir}. Skipped."
+        else
+          puts "Backup uploads for #{src_dir}..."
 
-        FileUtils.mkdir_p(File.dirname(dst_dir))
-        FileUtils.cp_r(src_dir, dst_dir) unless File.directory?(dst_dir)
+          FileUtils.mkdir_p(File.dirname(dst_dir))
+          FileUtils.cp_r(src_dir, dst_dir) unless File.directory?(dst_dir)
+        end
       end
     end
 
+    # Create tarball
     if ENV.key?('output_file')
       tar_file = ENV['output_file'] + (ENV['output_file'].end_with?('.tar') ? '' : '.tar')
     else
