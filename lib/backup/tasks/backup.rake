@@ -1,5 +1,15 @@
 namespace :backup do
-  BACKUP_DIR = File.join(Rails.root, "#{Rails.application.class.parent_name.underscore}-#{Rails.env}")
+
+  BACKUP_DIR = begin
+    app_name =
+        if Rails.application.class.respond_to?(:module_parent_name)
+          Rails.application.class.module_parent_name
+        else
+          Rails.application.class.parent_name
+        end.underscore
+
+    File.join(Rails.root, [app_name, Rails.env].join('-'))
+  end
 
   desc 'Create backup of rails application data'
   task :create do
