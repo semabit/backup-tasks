@@ -25,7 +25,7 @@ namespace :backup do
       dump_file = File.join(BACKUP_DIR, "#{db['database']}.dump")
       sql_file = File.join(BACKUP_DIR, "#{db['database']}.sql")
       system(
-        "mysqldump -u #{db['username']} #{"-p'#{db['password']}'" if db['password']} #{db['database']} > #{dump_file}"
+        "mysqldump  --no-tablespaces -u #{db['username']} #{"-p'#{db['password']}'" if db['password']} #{db['database']} > #{dump_file}"
       )
       File.open(sql_file, 'w') { |f| f.puts "use #{db['database']};\n" }
       system("cat #{dump_file} >> #{sql_file}")
