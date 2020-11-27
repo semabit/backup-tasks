@@ -11,6 +11,30 @@ namespace :backup do
     File.join(Rails.root, [app_name, Rails.env].join('-'))
   end
 
+  def mysqldump_database_args(db)
+    args = {}
+    args['--user'] = db['username']
+    args['--password'] = db['password'] if db['password']
+    args['--host'] = db['host'] if db['host']
+    args['--port'] = db['port'] if db['port']
+
+    args.map { |name, value| [name, value].join('=') }.join(' ')
+  end
+
+  def dumpfile_path(backup_dir: BACKUP_DIR)
+    default_path = File.join(backup_dir, 'database.dump')
+
+    # when restoring from a current tarball the default dumpfile should exist
+    return default_path if File.exist?(default_path)
+
+    # when restoring from an old tarball the default dumpfile may be named differently
+    legacy_path = Dir.glob(File.join(backup_dir, '*.dump')).first
+    return legacy_path if legacy_path.present?
+
+    # when creating a tarball return the default dumpfile
+    default_path
+  end
+
   desc 'Create backup of rails application data'
   task :create do
     FileUtils.rm_r(BACKUP_DIR) if File.directory?(BACKUP_DIR)
@@ -22,13 +46,9 @@ namespace :backup do
 
       db = Rails.configuration.database_configuration[Rails.env]
 
-      dump_file = File.join(BACKUP_DIR, "#{db['database']}.dump")
-      sql_file = File.join(BACKUP_DIR, "#{db['database']}.sql")
       system(
-        "mysqldump -u #{db['username']} #{"-p'#{db['password']}'" if db['password']} #{db['database']} > #{dump_file}"
+        "mysqldump --no-tablespaces #{mysqldump_database_args(db)} #{db['database']} > #{dumpfile_path}"
       )
-      File.open(sql_file, 'w') { |f| f.puts "use #{db['database']};\n" }
-      system("cat #{dump_file} >> #{sql_file}")
     end
 
     # backup uploads
@@ -77,7 +97,13 @@ namespace :backup do
     confirmation = STDIN.gets.strip
     abort 'Aborted' unless confirmation == 'Y'
 
+    # extract tarball and find out directory name
+    files_before = Dir.glob(File.join(File.dirname(BACKUP_DIR), '*'))
     system("tar -C #{File.dirname(BACKUP_DIR)} -xf #{tar_file}")
+    files_after = Dir.glob(File.join(File.dirname(BACKUP_DIR), '*'))
+
+    backup_dir = (files_after - files_before).first
+    abort "Could not determine backup directory. Maybe an old backup is still present?" unless backup_dir.present?
 
     # restore mysql database
     puts 'Restoring MySQL database...'
@@ -87,19 +113,21 @@ namespace :backup do
 
     db = Rails.configuration.database_configuration[Rails.env]
 
-    sql_file = File.join(BACKUP_DIR, "#{db['database']}.sql")
     system(
-      "mysql -u #{db['username']} #{"-p'#{db['password']}'" if db['password']} < #{sql_file}"
+      "mysql #{mysqldump_database_args(db)} #{db['database']} < #{dumpfile_path(backup_dir: backup_dir)}"
+    )
+    system(
+      "bin/rails db:environment:set RAILS_ENV=#{Rails.env}"
     )
 
     # restore uploads
     src_dirs = [
-      File.join(BACKUP_DIR, 'public', 'uploads'),
-      File.join(BACKUP_DIR, 'private', 'uploads')
+      File.join(backup_dir, 'public', 'uploads'),
+      File.join(backup_dir, 'private', 'uploads')
     ]
 
     src_dirs.each do |src_dir|
-      dst_dir = File.join(Rails.root, src_dir[(BACKUP_DIR.length + 1)..-1])
+      dst_dir = File.join(Rails.root, src_dir[(backup_dir.length + 1)..-1])
 
       unless File.exist?(src_dir)
         puts "No backups found for #{dst_dir}. Skipped."
@@ -121,6 +149,6 @@ namespace :backup do
     end
 
     # cleanup
-    FileUtils.rm_r(BACKUP_DIR)
+    FileUtils.rm_r(backup_dir)
   end
 end
