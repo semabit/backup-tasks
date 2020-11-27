@@ -11,6 +11,16 @@ namespace :backup do
     File.join(Rails.root, [app_name, Rails.env].join('-'))
   end
 
+  def mysqldump_database_args(db)
+    args = {}
+    args['--user'] = db['username']
+    args['--password'] = db['password'] if db['password']
+    args['--host'] = db['host'] if db['host']
+    args['--port'] = db['port'] if db['port']
+
+    args.map { |name, value| [name, value].join('=') }.join(' ')
+  end
+
   desc 'Create backup of rails application data'
   task :create do
     FileUtils.rm_r(BACKUP_DIR) if File.directory?(BACKUP_DIR)
@@ -24,9 +34,11 @@ namespace :backup do
 
       dump_file = File.join(BACKUP_DIR, "#{db['database']}.dump")
       sql_file = File.join(BACKUP_DIR, "#{db['database']}.sql")
+
       system(
-        "mysqldump  --no-tablespaces -u #{db['username']} #{"-p'#{db['password']}'" if db['password']} #{db['database']} > #{dump_file}"
+        "mysqldump --no-tablespaces #{mysqldump_database_args(db)} #{db['database']} > #{dump_file}"
       )
+
       File.open(sql_file, 'w') { |f| f.puts "use #{db['database']};\n" }
       system("cat #{dump_file} >> #{sql_file}")
     end
@@ -89,7 +101,7 @@ namespace :backup do
 
     sql_file = File.join(BACKUP_DIR, "#{db['database']}.sql")
     system(
-      "mysql -u #{db['username']} #{"-p'#{db['password']}'" if db['password']} < #{sql_file}"
+      "mysql #{mysqldump_database_args(db)} < #{sql_file}"
     )
 
     # restore uploads
