@@ -18,7 +18,7 @@ namespace :backup do
     args['--host'] = db['host'] if db['host']
     args['--port'] = db['port'] if db['port']
 
-    args.map { |name, value| [name, value].join('=') }.join(' ')
+    args.map { |name, value| [name, "\"#{value}\""].join('=') }.join(' ')
   end
 
   def dumpfile_path(backup_dir: BACKUP_DIR)
@@ -46,6 +46,7 @@ namespace :backup do
 
       db = Rails.configuration.database_configuration[Rails.env]
 
+      FileUtils.mkdir_p(File.dirname(dumpfile_path))
       system(
         "mysqldump --no-tablespaces #{mysqldump_database_args(db)} #{db['database']} > #{dumpfile_path}"
       )
