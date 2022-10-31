@@ -1,5 +1,7 @@
 # Backup Tasks
 
+![🛡 Specs](https://github.com/semabit/backup-tasks/actions/workflows/specs.yml/badge.svg?branch=master)
+
 This gem adds rake tasks helpful for making and restoring backups:
 
 ```ruby
