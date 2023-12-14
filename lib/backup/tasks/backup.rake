@@ -37,51 +37,67 @@ namespace :backup do
 
   desc 'Create backup of rails application data'
   task :create do
-    FileUtils.rm_r(BACKUP_DIR) if File.directory?(BACKUP_DIR)
-    FileUtils.mkdir_p(BACKUP_DIR)
+    Rake::Task["backup:create:backup_dir"].invoke
+    Rake::Task["backup:create:db"].invoke
+    Rake::Task["backup:create:uploads"].invoke
+    Rake::Task["backup:create:tarball"].invoke
+  end
 
-    # backup mysql database
-    unless ENV["skip_database"].present? && ENV["skip_database"] == "true"
-      puts 'Backup MySQL database...'
-
-      db = Rails.configuration.database_configuration[Rails.env]
-
-      FileUtils.mkdir_p(File.dirname(dumpfile_path))
-      system(
-        "mysqldump --no-tablespaces #{mysqldump_database_args(db)} #{db['database']} > #{dumpfile_path}"
-      )
+  namespace :create do
+    desc 'Ensure clean BACKUP_DIR'
+    task :backup_dir do
+      FileUtils.rm_r(BACKUP_DIR) if File.directory?(BACKUP_DIR)
+      FileUtils.mkdir_p(BACKUP_DIR)
     end
 
-    # backup uploads
-    unless ENV["skip_uploads"].present? && ENV["skip_uploads"] == "true"
-      src_dirs = [
-        File.join(Rails.root, 'public', 'uploads'),
-        File.join(Rails.root, 'private', 'uploads')
-      ]
+    desc 'Create backup of mysql database'
+    task :db do
+      unless ENV["skip_database"].present? && ENV["skip_database"] == "true"
+        puts 'Backup MySQL database...'
 
-      src_dirs.each do |src_dir|
-        dst_dir = File.join(BACKUP_DIR, src_dir[(Rails.root.to_s.length + 1)..-1])
+        db = Rails.configuration.database_configuration[Rails.env]
 
-        unless File.exist?(src_dir)
-          puts "No backups found for #{src_dir}. Skipped."
-        else
-          puts "Backup uploads for #{src_dir}..."
+        FileUtils.mkdir_p(File.dirname(dumpfile_path))
+        system(
+          "mysqldump --no-tablespaces #{mysqldump_database_args(db)} #{db['database']} > #{dumpfile_path}"
+        )
+      end
+    end
 
-          FileUtils.mkdir_p(File.dirname(dst_dir))
-          FileUtils.cp_r(src_dir, dst_dir) unless File.directory?(dst_dir)
+    desc 'Create backup of uploads'
+    task :uploads do
+      unless ENV["skip_uploads"].present? && ENV["skip_uploads"] == "true"
+        src_dirs = [
+          File.join(Rails.root, 'public', 'uploads'),
+          File.join(Rails.root, 'private', 'uploads')
+        ]
+
+        src_dirs.each do |src_dir|
+          dst_dir = File.join(BACKUP_DIR, src_dir[(Rails.root.to_s.length + 1)..-1])
+
+          unless File.exist?(src_dir)
+            puts "No backups found for #{src_dir}. Skipped."
+          else
+            puts "Backup uploads for #{src_dir}..."
+
+            FileUtils.mkdir_p(File.dirname(dst_dir))
+            FileUtils.cp_r(src_dir, dst_dir) unless File.directory?(dst_dir)
+          end
         end
       end
     end
 
-    # Create tarball
-    if ENV.key?('output_file')
-      tar_file = ENV['output_file'] + (ENV['output_file'].end_with?('.tar') ? '' : '.tar')
-    else
-      tar_file = "#{BACKUP_DIR}.tar"
-    end
+    desc 'Create tarball'
+    task :tarball do
+      if ENV.key?('output_file')
+        tar_file = ENV['output_file'] + (ENV['output_file'].end_with?('.tar') ? '' : '.tar')
+      else
+        tar_file = "#{BACKUP_DIR}.tar"
+      end
 
-    if system("tar -C #{File.dirname(BACKUP_DIR)} -cf #{tar_file} #{File.basename(BACKUP_DIR)}")
-      FileUtils.rm_r(BACKUP_DIR)
+      if system("tar -C #{File.dirname(BACKUP_DIR)} -cf #{tar_file} #{File.basename(BACKUP_DIR)}")
+        FileUtils.rm_r(BACKUP_DIR)
+      end
     end
   end
 
