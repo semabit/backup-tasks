@@ -95,7 +95,7 @@ namespace :backup do
         tar_file = "#{BACKUP_DIR}.tar"
       end
 
-      if system("tar -C #{File.dirname(BACKUP_DIR)} -cf #{tar_file} #{File.basename(BACKUP_DIR)}")
+      if system("tar -C #{File.dirname(BACKUP_DIR)} -czf #{tar_file} #{File.basename(BACKUP_DIR)}")
         FileUtils.rm_r(BACKUP_DIR)
       end
     end
