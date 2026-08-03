@@ -90,12 +90,13 @@ namespace :backup do
     desc 'Create tarball'
     task :tarball do
       if ENV.key?('output_file')
-        tar_file = ENV['output_file'] + (ENV['output_file'].end_with?('.tar') ? '' : '.tar')
+        tar_file = ENV['output_file']
+        tar_file += tar_file.end_with?('.tar') ? '.gz' : '.tar.gz' unless tar_file.end_with?('.tar.gz')
       else
-        tar_file = "#{BACKUP_DIR}.tar"
+        tar_file = "#{BACKUP_DIR}.tar.gz"
       end
 
-      if system("tar -C #{File.dirname(BACKUP_DIR)} -cf #{tar_file} #{File.basename(BACKUP_DIR)}")
+      if system("tar -C #{File.dirname(BACKUP_DIR)} -czf #{tar_file} #{File.basename(BACKUP_DIR)}")
         FileUtils.rm_r(BACKUP_DIR)
       end
     end
